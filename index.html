@@ -91,7 +91,8 @@
     </div>
 
     <script>
-        const socket = io('http://localhost:3001');
+        // 소켓 연결 주소를 자동 호스트 연동 방식으로 수정
+        const socket = io();
 
         function getSpyToken() {
             let token = localStorage.getItem('spy_token');
@@ -152,7 +153,6 @@
             const me = Object.values(room.players).find(p => p.token === myToken);
             const players = Object.values(room.players);
 
-            // 플레이어 현황 바
             document.getElementById('spy-players-bar').innerHTML = players.map(p => `
                 <div class="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs flex gap-2 items-center shrink-0">
                     <span class="font-bold text-white">${p.name}</span>
@@ -160,7 +160,6 @@
                 </div>
             `).join('');
 
-            // 대기실 버튼 분기
             if (room.status === 'waiting') {
                 const btnArea = document.getElementById('spy-action-btn-area');
                 if (isHost) {
@@ -171,7 +170,6 @@
                 }
             }
 
-            // 게임 플레이 상태 진입
             if (room.status === 'playing' || room.status === 'voting') {
                 document.getElementById('waiting-host-panel').classList.add('hidden');
                 document.getElementById('role-card-panel').classList.remove('hidden');
@@ -189,7 +187,6 @@
                     }
                 }
 
-                // 턴 순서 표시 및 지목 셀렉트 박스 갱신
                 const currentTurnPlayer = players[room.turnIndex];
                 const isMyTurn = currentTurnPlayer && currentTurnPlayer.token === myToken;
 
@@ -204,16 +201,14 @@
                 select.innerHTML = players.filter(p => p.token !== myToken).map(p => `<option value="${p.token}">${p.name}</option>`).join('');
             }
 
-            // 투표 상태 모달 제어
             if (room.status === 'voting') {
                 document.getElementById('vote-modal').classList.remove('hidden');
                 const accused = players.find(p => p.token === room.accusedToken);
-                document.getElementById('vote-target-text.innerText` = `플레이어 [${accused ? accused.name : ''}]님을 스파이로 지목했습니다. 찬성하시겠습니까?`;
+                document.getElementById('vote-target-text').innerText = `플레이어 [${accused ? accused.name : ''}]님을 스파이로 지목했습니다. 찬성하시겠습니까?`;
             } else {
                 document.getElementById('vote-modal').classList.add('hidden');
             }
 
-            // 게임 종료 모달 제어
             if (room.status === 'ended') {
                 document.getElementById('spy-game-over-modal').classList.remove('hidden');
                 document.getElementById('end-reason-text').innerText = room.endReason;
