@@ -32,20 +32,18 @@
             </button>
         </div>
 
-        <!-- 2. 통합 방 화면 (입장 직후부터 채팅 + 인원 확인 + 게임 시작 가능) -->
+        <!-- 2. 통합 방 화면 -->
         <div id="screen-room" class="hidden space-y-4">
-            <!-- 상단 정보 및 시작 버튼 -->
             <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center">
                 <div>
                     <span class="text-[11px] text-slate-400 block">현재 접속 인원</span>
-                    <span id="player-count" class="text-sm font-bold text-indigo-300">0명 (최소 3명 필요)</span>
+                    <span id="player-count" class="text-xs font-bold text-indigo-300">0명 (최소 3명 필요)</span>
                 </div>
                 <button onclick="requestStartGame()" class="bg-green-600 hover:bg-green-500 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer">
                     🚀 게임 시작
                 </button>
             </div>
 
-            <!-- 게임 중일 때만 표시되는 신분/장소 박스 -->
             <div id="game-info-box" class="hidden bg-indigo-900/60 border border-indigo-500/50 rounded-xl p-3 flex justify-between items-center">
                 <div>
                     <span class="text-xs text-slate-400 block">내 신분</span>
@@ -64,7 +62,7 @@
             </div>
             <div id="location-panel" class="hidden bg-slate-900 border border-slate-700 rounded-xl p-3 max-h-36 overflow-y-auto text-xs grid grid-cols-2 gap-1 text-slate-400"></div>
 
-            <!-- 대화 및 채팅창 (입장하자마자 이용 가능) -->
+            <!-- 채팅창 -->
             <div id="chat-box" class="bg-slate-900 border border-slate-700 rounded-xl h-52 overflow-y-auto p-3 space-y-2 text-xs flex flex-col"></div>
 
             <div class="flex gap-2">
@@ -72,7 +70,6 @@
                 <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">전송</button>
             </div>
 
-            <!-- 게임 중에만 뜨는 종료 버튼 -->
             <button id="vote-btn" onclick="triggerVote()" class="hidden w-full bg-red-600/80 hover:bg-red-600 text-xs font-bold py-2.5 rounded-xl cursor-pointer">🚨 지목 투표 및 게임 종료</button>
         </div>
 
@@ -101,27 +98,28 @@
         }
 
         socket.on('roomData', ({ players }) => {
-            state.players = players.map(p => p.name);
-            document.getElementById('player-count').innerText = `${players.length}명 참여중 (${state.players.join(', ')})`;
+            state.players = players;
+            const namesList = players.map(p => `${p.emoji} ${p.name}`).join(', ');
+            document.getElementById('player-count').innerText = `${players.length}명 참여중 (${namesList})`;
         });
 
         socket.on('systemMessage', (msg) => {
             appendChat('system', msg);
         });
 
-        socket.on('chatMessage', ({ sender, text }) => {
-            appendChat(sender, text);
+        socket.on('chatMessage', ({ sender, color, emoji, text }) => {
+            appendChat('user', text, sender, color, emoji);
         });
 
-        function appendChat(sender, text) {
+        function appendChat(type, text, sender = '', color = '', emoji = '') {
             const chatBox = document.getElementById('chat-box');
-            if (sender === 'system') {
+            if (type === 'system') {
                 chatBox.innerHTML += `<div class="text-center text-slate-500 text-[11px] my-1">--- ${text} ---</div>`;
             } else {
                 const isMe = (sender === state.me);
                 chatBox.innerHTML += `
                     <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
-                        <span class="text-[10px] text-slate-400 mb-0.5">${sender}</span>
+                        <span class="text-[10px] ${color} font-semibold mb-0.5">${emoji} ${sender}</span>
                         <div class="max-w-[85%] rounded-xl px-3 py-2 bg-slate-800 border border-slate-700 text-xs">${text}</div>
                     </div>
                 `;
@@ -171,7 +169,11 @@
 
         function renderLocations(locations) {
             const listEl = document.getElementById('location-panel');
-            listEl.innerHTML = locations.map(loc => `<div class="bg-slate-800 p-1.5 rounded text-center border border-slate-700/50 flex items-center justify-center gap-1.5"><span>${loc.icon}</span><span>${loc.name}</span></div>`).join('');
+            listEl.innerHTML = locations.map(loc => `
+                <div class="bg-slate-800 p-1.5 rounded text-center border border-slate-700/50 flex items-center justify-center gap-1.5">
+                    <span>${loc.icon}</span><span>${loc.name}</span>
+                </div>
+            `).join('');
         }
 
         function toggleLocations() {
