@@ -3,207 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>스파이폴 온라인</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>스파이폴 - 추리 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Pretendard', sans-serif; }</style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 font-sans">
 
-    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
-        <div class="text-center mb-5">
-            <h1 class="text-3xl font-extrabold text-indigo-400">🕵️‍♂️ SPYFALL ONLINE</h1>
-            <p class="text-sm text-slate-400 mt-1">자유로운 방 채팅 & 40개 장소</p>
+    <!-- 로비 화면 -->
+    <div id="spy-login-screen" class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
+        <h1 class="text-3xl font-black text-indigo-400">🕵️ 스파이폴</h1>
+        <p class="text-xs text-slate-400">비밀 장소에서 스파이를 찾아내세요!</p>
+        <input type="text" id="spy-name-input" placeholder="요원 닉네임 입력" maxlength="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-white font-bold focus:outline-none focus:border-indigo-500">
+        <input type="text" id="spy-room-input" placeholder="방 코드 (참가 시 입력)" maxlength="6" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-indigo-300 font-mono font-bold uppercase focus:outline-none focus:border-indigo-500">
+        <div class="flex gap-2 pt-2">
+            <button onclick="createSpyRoom()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl transition shadow-lg">방 만들기</button>
+            <button onclick="joinSpyRoom()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl transition shadow-lg">방 참가</button>
+        </div>
+    </div>
+
+    <!-- 게임 플레이 화면 -->
+    <div id="spy-game-screen" class="w-full max-w-3xl flex-1 flex flex-col gap-3 my-2 hidden">
+        <!-- 상단 헤더 -->
+        <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 shadow-lg">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <h1 class="font-black text-indigo-400 text-lg">🕵️ 스파이폴</h1>
+                    <span id="spy-room-badge" class="bg-slate-950 text-indigo-300 text-xs px-2.5 py-1 rounded-md font-mono font-bold"></span>
+                    <button onclick="copySpyInviteLink()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1 rounded-md font-bold transition">초대링크 복사</button>
+                    <button onclick="leaveSpyRoom()" class="bg-rose-600 hover:bg-rose-500 text-white text-xs px-2.5 py-1 rounded-md font-bold transition">방 나가기</button>
+                </div>
+                <div id="game-timer" class="text-rose-400 font-mono font-bold text-sm hidden">⏱️ 08:00</div>
+            </div>
+            <!-- 플레이어 목록 바 -->
+            <div id="spy-players-bar" class="flex gap-2 overflow-x-auto border-t border-slate-800 pt-3"></div>
+        </header>
+
+        <!-- 내 정보 및 역할 카드 패널 -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center shadow-lg relative flex flex-col items-center justify-center min-h-[180px]">
+            <div id="waiting-host-panel" class="space-y-4 w-full">
+                <h2 class="text-sm font-bold text-indigo-300">최소 3명 이상 필요하며, 준비 완료 시 방장이 시작할 수 있습니다.</h2>
+                <div id="spy-action-btn-area"></div>
+            </div>
+
+            <div id="role-card-panel" class="hidden space-y-3 w-full">
+                <div class="inline-block bg-indigo-500/20 text-indigo-300 text-xs px-3 py-1 rounded-full font-bold">비밀 정보 카드</div>
+                <div id="card-content" class="text-2xl font-black text-white"></div>
+                <div id="turn-notice" class="text-sm font-bold text-amber-400 mt-2"></div>
+            </div>
         </div>
 
-        <!-- 1. 로그인 (닉네임 & 방 코드) -->
-        <div id="screen-login" class="space-y-4">
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">내 닉네임</label>
-                <input type="text" id="player-name" placeholder="이름을 입력하세요" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-indigo-500">
+        <!-- 하단: 턴 지목 컨트롤 & 투표 패널 -->
+        <div id="control-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg hidden">
+            <div id="question-control" class="space-y-3">
+                <div class="text-xs font-bold text-slate-400">상대방에게 질문하고 다음 순서로 지목하세요 (A ➡️ B)</div>
+                <div class="flex gap-2">
+                    <select id="target-select" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none"></select>
+                    <button onclick="passTurn()" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl text-sm font-black transition">질문 넘기기</button>
+                </div>
             </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">방 코드 (친구들과 동일하게 입력)</label>
-                <input type="text" id="room-id" value="room1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-indigo-500">
+            
+            <div id="spy-actions" class="flex gap-2 mt-3 pt-3 border-t border-slate-800">
+                <button onclick="openAccuseModal()" class="flex-1 bg-rose-600 hover:bg-rose-500 py-2.5 rounded-xl text-xs font-bold transition">🚨 스파이 지목하기</button>
+                <button onclick="openGuessModal()" id="spy-guess-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 py-2.5 rounded-xl text-xs font-bold transition hidden">🕵️‍♂️ 장소 맞추기 선언</button>
             </div>
-            <button onclick="joinRoom()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3.5 rounded-xl transition cursor-pointer">
-                🚀 방 들어가기
-            </button>
         </div>
+    </div>
 
-        <!-- 2. 통합 방 화면 -->
-        <div id="screen-room" class="hidden space-y-4">
-            <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center">
-                <div>
-                    <span class="text-[11px] text-slate-400 block">현재 접속 인원</span>
-                    <span id="player-count" class="text-xs font-bold text-indigo-300">0명 (최소 3명 필요)</span>
-                </div>
-                <button onclick="requestStartGame()" class="bg-green-600 hover:bg-green-500 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer">
-                    🚀 게임 시작
-                </button>
+    <!-- 투표 모달 -->
+    <div id="vote-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <h2 class="text-xl font-black text-rose-400">🚨 스파이 투표 진행 중</h2>
+            <p id="vote-target-text" class="text-sm text-slate-300 font-bold"></p>
+            <div class="flex gap-2 pt-2">
+                <button onclick="castVote(true)" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-black text-white transition">찬성 👍</button>
+                <button onclick="castVote(false)" class="flex-1 bg-rose-600 hover:bg-rose-500 py-3 rounded-xl font-black text-white transition">반대 👎</button>
             </div>
-
-            <div id="game-info-box" class="hidden bg-indigo-900/60 border border-indigo-500/50 rounded-xl p-3 flex justify-between items-center">
-                <div>
-                    <span class="text-xs text-slate-400 block">내 신분</span>
-                    <span id="my-role-box" class="font-bold text-sm"></span>
-                </div>
-                <div class="text-right">
-                    <span class="text-xs text-slate-400 block">장소</span>
-                    <span id="my-location-box" class="font-bold text-sm text-indigo-300"></span>
-                </div>
-            </div>
-
-            <!-- 장소 목록 접이식 버튼 -->
-            <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-xl border border-slate-700/50 text-xs">
-                <span class="text-slate-400">🗺️ 40개 장소 목록 보기</span>
-                <button onclick="toggleLocations()" class="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded-lg font-semibold cursor-pointer">열기/닫기</button>
-            </div>
-            <div id="location-panel" class="hidden bg-slate-900 border border-slate-700 rounded-xl p-3 max-h-36 overflow-y-auto text-xs grid grid-cols-2 gap-1 text-slate-400"></div>
-
-            <!-- 채팅창 -->
-            <div id="chat-box" class="bg-slate-900 border border-slate-700 rounded-xl h-52 overflow-y-auto p-3 space-y-2 text-xs flex flex-col"></div>
-
-            <div class="flex gap-2">
-                <input type="text" id="chat-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.key==='Enter') sendMessage()" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none">
-                <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer">전송</button>
-            </div>
-
-            <button id="vote-btn" onclick="triggerVote()" class="hidden w-full bg-red-600/80 hover:bg-red-600 text-xs font-bold py-2.5 rounded-xl cursor-pointer">🚨 지목 투표 및 게임 종료</button>
         </div>
+    </div>
 
-        <!-- 3. 결과 화면 -->
-        <div id="screen-result" class="hidden space-y-4 text-center">
-            <h2 class="text-2xl font-extrabold text-indigo-400">게임 종료</h2>
-            <p id="result-desc" class="text-sm text-slate-300 leading-relaxed"></p>
-            <button onclick="location.reload()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl cursor-pointer">🔄 방으로 돌아가기</button>
+    <!-- 게임 종료 모달 -->
+    <div id="spy-game-over-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full text-center space-y-4 shadow-2xl">
+            <h2 class="text-2xl font-black text-indigo-400">🏁 게임 종료</h2>
+            <p id="end-reason-text" class="text-base font-bold text-amber-300 bg-slate-950 p-4 rounded-xl"></p>
+            <button onclick="location.reload()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-white transition">로비로 돌아가기</button>
         </div>
     </div>
 
     <script>
-        const socket = io();
-        let state = { me: "", players: [] };
+        const socket = io('http://localhost:3001');
 
-        const ALL_LOCATIONS = [
-            { name: "우주정거장", icon: "🛰️" }, { name: "해변", icon: "🏖️" },
-            { name: "카지노", icon: "🎰" }, { name: "여객선", icon: "🚢" },
-            { name: "대형마트", icon: "🛒" }, { name: "병원", icon: "🏥" },
-            { name: "영화관", icon: "🎬" }, { name: "호텔", icon: "🏨" },
-            { name: "군대 부대", icon: "🎖️" }, { name: "학교", icon: "🏫" },
-            { name: "경찰서", icon: "🚨" }, { name: "놀이공원", icon: "🎡" },
-            { name: "미술관", icon: "🖼️" }, { name: "공항", icon: "✈️" },
-            { name: "소방서", icon: "🚒" }, { name: "은행", icon: "💰" },
-            { name: "도서관", icon: "📚" }, { name: "식당", icon: "🍽️" },
-            { name: "체육관", icon: "🏀" }, { name: "동물원", icon: "🦁" },
-            { name: "PC방", icon: "💻" }, { name: "노래방", icon: "🎤" },
-            { name: "편의점", icon: "🏪" }, { name: "골프장", icon: "⛳" },
-            { name: "스키장", icon: "⛷️" }, { name: "캠핑장", icon: "⛺" },
-            { name: "방송국", icon: "📺" }, { name: "법정", icon: "⚖️" },
-            { name: "연구소", icon: "🔬" }, { name: "수영장", icon: "🏊‍♂️" },
-            { name: "열기구 축제", icon: "🎈" }, { name: "오아시스 마을", icon: "🏜️" },
-            { name: "장난감 공장", icon: "🧸" }, { name: "워터파크 파도풀", icon: "🌊" },
-            { name: "야외 스케이트장", icon: "⛸️" }, { name: "중세 마차 정거장", icon: "🐴" },
-            { name: "아마존 탐험선", icon: "🐊" }, { name: "산꼭대기 천문대", icon: "🔭" },
-            { name: "비밀 마법 학교", icon: "🧙‍♂️" }, { name: "조선시대 궁궐", icon: "🏯" }
-        ];
-
-        function joinRoom() {
-            const name = document.getElementById('player-name').value.trim();
-            const roomId = document.getElementById('room-id').value.trim();
-            if (!name || !roomId) return alert('닉네임과 방 코드를 입력하세요!');
-
-            state.me = name;
-            socket.emit('joinRoom', { roomId, name });
-
-            document.getElementById('screen-login').classList.add('hidden');
-            document.getElementById('screen-room').classList.remove('hidden');
-
-            // 입장하자마자 장소 목록 미리 렌더링
-            renderLocations(ALL_LOCATIONS);
-        }
-
-        socket.on('roomData', ({ players }) => {
-            state.players = players;
-            const namesList = players.map(p => `${p.emoji} ${p.name}`).join(', ');
-            document.getElementById('player-count').innerText = `${players.length}명 참여중 (${namesList})`;
-        });
-
-        socket.on('systemMessage', (msg) => {
-            appendChat('system', msg);
-        });
-
-        socket.on('chatMessage', ({ sender, color, emoji, text }) => {
-            appendChat('user', text, sender, color, emoji);
-        });
-
-        function appendChat(type, text, sender = '', color = '', emoji = '') {
-            const chatBox = document.getElementById('chat-box');
-            if (type === 'system') {
-                chatBox.innerHTML += `<div class="text-center text-slate-500 text-[11px] my-1">--- ${text} ---</div>`;
-            } else {
-                const isMe = (sender === state.me);
-                chatBox.innerHTML += `
-                    <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
-                        <span class="text-[10px] ${color} font-semibold mb-0.5">${emoji} ${sender}</span>
-                        <div class="max-w-[85%] rounded-xl px-3 py-2 bg-slate-800 border border-slate-700 text-xs">${text}</div>
-                    </div>
-                `;
+        function getSpyToken() {
+            let token = localStorage.getItem('spy_token');
+            if (!token) {
+                token = 's_tok_' + Math.random().toString(36).substring(2, 10);
+                localStorage.setItem('spy_token', token);
             }
-            chatBox.scrollTop = chatBox.scrollHeight;
+            return token;
         }
 
-        function sendMessage() {
-            const input = document.getElementById('chat-input');
-            const text = input.value.trim();
-            if (!text) return;
-            socket.emit('sendMessage', text);
-            input.value = '';
-        }
-
-        function requestStartGame() {
-            socket.emit('startGame');
-        }
-
-        socket.on('errorMsg', (msg) => alert(msg));
-
-        socket.on('gameStarted', ({ isSpy, location, players, locationsList }) => {
-            state.players = players;
-            document.getElementById('game-info-box').classList.remove('hidden');
-            document.getElementById('vote-btn').classList.remove('hidden');
-
-            document.getElementById('my-role-box').innerText = isSpy ? "🕵️‍♂️ 스파이" : "🛡️ 시민";
-            document.getElementById('my-location-box').innerText = isSpy ? "???" : `${location.icon} ${location.name}`;
-
-            renderLocations(locationsList);
-            appendChat('system', '🎮 게임이 시작되었습니다!');
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(location.search);
+            const rParam = params.get('spy_room');
+            if (rParam) document.getElementById('spy-room-input').value = rParam;
         });
 
-        function triggerVote() {
-            socket.emit('triggerVote');
+        function createSpyRoom() {
+            const name = document.getElementById('spy-name-input').value.trim();
+            if (!name) { alert('닉네임을 입력하세요.'); return; }
+            localStorage.setItem('spy_name', name);
+            socket.emit('spy_create_room', { name, token: getSpyToken() });
         }
 
-        socket.on('gameEnded', ({ location, spyName }) => {
-            document.getElementById('screen-room').classList.add('hidden');
-            document.getElementById('screen-result').classList.remove('hidden');
-            
-            document.getElementById('result-desc').innerHTML = `
-                정답 장소: <strong class="text-indigo-300">${location.icon} ${location.name}</strong><br><br>
-                진짜 스파이: <strong class="text-red-400">${spyName}</strong>
-            `;
+        function joinSpyRoom() {
+            const name = document.getElementById('spy-name-input').value.trim();
+            const roomId = document.getElementById('spy-room-input').value.trim();
+            if (!name || !roomId) { alert('닉네임과 방 코드를 입력하세요.'); return; }
+            localStorage.setItem('spy_name', name);
+            localStorage.setItem('spy_room', roomId);
+            socket.emit('spy_join_room', { name, roomId, token: getSpyToken() });
+        }
+
+        function leaveSpyRoom() {
+            if (confirm('방을 나가시겠습니까?')) socket.emit('spy_leave_room', getSpyToken());
+        }
+
+        function copySpyInviteLink() {
+            const roomId = document.getElementById('spy-room-badge').innerText;
+            navigator.clipboard.writeText(`${location.origin}${location.pathname}?spy_room=${roomId}`);
+            alert('초대 링크가 복사되었습니다!');
+        }
+
+        socket.on('spy_joined_success', (data) => {
+            localStorage.setItem('spy_room', data.roomId);
+            document.getElementById('spy-login-screen').classList.add('hidden');
+            document.getElementById('spy-game-screen').classList.remove('hidden');
+            document.getElementById('spy-room-badge').innerText = data.roomId;
         });
 
-        function renderLocations(locations) {
-            const listEl = document.getElementById('location-panel');
-            listEl.innerHTML = locations.map(loc => `
-                <div class="bg-slate-800 p-1.5 rounded text-center border border-slate-700/50 flex items-center justify-center gap-1.5">
-                    <span>${loc.icon}</span><span>${loc.name}</span>
+        socket.on('spy_left_success', () => {
+            localStorage.removeItem('spy_room');
+            location.href = location.pathname;
+        });
+
+        socket.on('spy_state_update', (room) => {
+            const myToken = getSpyToken();
+            const isHost = (room.hostToken === myToken);
+            const me = Object.values(room.players).find(p => p.token === myToken);
+            const players = Object.values(room.players);
+
+            // 플레이어 현황 바
+            document.getElementById('spy-players-bar').innerHTML = players.map(p => `
+                <div class="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-xs flex gap-2 items-center shrink-0">
+                    <span class="font-bold text-white">${p.name}</span>
+                    ${room.status === 'waiting' ? (p.token === room.hostToken ? '<span class="text-indigo-400 font-bold">방장</span>' : (p.isReady ? '✅ 준비' : '⏳ 대기')) : ''}
                 </div>
             `).join('');
+
+            // 대기실 버튼 분기
+            if (room.status === 'waiting') {
+                const btnArea = document.getElementById('spy-action-btn-area');
+                if (isHost) {
+                    btnArea.innerHTML = `<button onclick="socket.emit('spy_start_game', '${myToken}')" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-black text-white text-base transition shadow-lg">게임 시작</button>`;
+                } else {
+                    const ready = me && me.isReady;
+                    btnArea.innerHTML = `<button onclick="socket.emit('spy_toggle_ready', '${myToken}')" class="w-full ${ready ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500'} py-3 rounded-xl font-black text-white text-base transition shadow-lg">${ready ? '준비 취소' : '준비 완료'}</button>`;
+                }
+            }
+
+            // 게임 플레이 상태 진입
+            if (room.status === 'playing' || room.status === 'voting') {
+                document.getElementById('waiting-host-panel').classList.add('hidden');
+                document.getElementById('role-card-panel').classList.remove('hidden');
+                document.getElementById('control-panel').classList.remove('hidden');
+                document.getElementById('game-timer').classList.remove('hidden');
+
+                if (me) {
+                    const card = document.getElementById('card-content');
+                    if (me.isSpy) {
+                        card.innerHTML = `<span class="text-rose-500">🕵️ 당신은 스파이입니다!</span><div class="text-xs text-slate-400 mt-1">시민들의 대화를 통해 장소를 눈치채세요.</div>`;
+                        document.getElementById('spy-guess-btn').classList.remove('hidden');
+                    } else {
+                        card.innerHTML = `📍 장소: <span class="text-emerald-400">${room.currentLocation}</span><br>🏷️ 역할: <span class="text-indigo-300">${me.role}</span>`;
+                        document.getElementById('spy-guess-btn').classList.add('hidden');
+                    }
+                }
+
+                // 턴 순서 표시 및 지목 셀렉트 박스 갱신
+                const currentTurnPlayer = players[room.turnIndex];
+                const isMyTurn = currentTurnPlayer && currentTurnPlayer.token === myToken;
+
+                const turnNotice = document.getElementById('turn-notice');
+                if (isMyTurn) {
+                    turnNotice.innerHTML = `👉 <span class="text-emerald-400">당신의 차례입니다!</span> 다른 플레이어에게 질문을 던지고 지목하세요.`;
+                } else {
+                    turnNotice.innerHTML = `⏳ 현재 질문 차례: <span class="text-indigo-300">${currentTurnPlayer ? currentTurnPlayer.name : ''}</span>님`;
+                }
+
+                const select = document.getElementById('target-select');
+                select.innerHTML = players.filter(p => p.token !== myToken).map(p => `<option value="${p.token}">${p.name}</option>`).join('');
+            }
+
+            // 투표 상태 모달 제어
+            if (room.status === 'voting') {
+                document.getElementById('vote-modal').classList.remove('hidden');
+                const accused = players.find(p => p.token === room.accusedToken);
+                document.getElementById('vote-target-text.innerText` = `플레이어 [${accused ? accused.name : ''}]님을 스파이로 지목했습니다. 찬성하시겠습니까?`;
+            } else {
+                document.getElementById('vote-modal').classList.add('hidden');
+            }
+
+            // 게임 종료 모달 제어
+            if (room.status === 'ended') {
+                document.getElementById('spy-game-over-modal').classList.remove('hidden');
+                document.getElementById('end-reason-text').innerText = room.endReason;
+            }
+        });
+
+        socket.on('spy_timer_tick', (timeLeft) => {
+            const min = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+            const sec = String(timeLeft % 60).padStart(2, '0');
+            document.getElementById('game-timer').innerText = `⏱️ ${min}:${sec}`;
+        });
+
+        socket.on('spy_error', alert);
+
+        function passTurn() {
+            const targetToken = document.getElementById('target-select').value;
+            if (!targetToken) return;
+            socket.emit('spy_pass_turn', { token: getSpyToken(), targetToken });
         }
 
-        function toggleLocations() {
-            document.getElementById('location-panel').classList.toggle('hidden');
+        function openAccuseModal() {
+            const targetToken = document.getElementById('target-select').value;
+            if (!targetToken) return;
+            if (confirm('정말 이 플레이어를 스파이로 지목하고 투표를 시작하시겠습니까?')) {
+                socket.emit('spy_accuse', { token: getSpyToken(), targetToken });
+            }
+        }
+
+        function castVote(agree) {
+            socket.emit('spy_vote', { token: getSpyToken(), agree });
+            document.getElementById('vote-modal').classList.add('hidden');
+        }
+
+        function openGuessModal() {
+            const guess = prompt('현재 장소가 어디인지 입력하세요 (예: 해수욕장 🏖️):');
+            if (guess) {
+                socket.emit('spy_guess_location', { token: getSpyToken(), guessedLocation: guess.trim() });
+            }
         }
     </script>
 </body>
