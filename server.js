@@ -8,7 +8,7 @@ const io = new Server(server, {
     cors: { origin: "*" }
 });
 
-app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 const LOCATIONS = [
     { name: "우주정거장", icon: "🛰️" }, { name: "해변", icon: "🏖️" },
@@ -153,7 +153,9 @@ io.on('connection', (socket) => {
         }
     });
 });
-
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/index.html');
+});
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
