@@ -85,6 +85,29 @@
         const socket = io();
         let state = { me: "", players: [] };
 
+        const ALL_LOCATIONS = [
+            { name: "우주정거장", icon: "🛰️" }, { name: "해변", icon: "🏖️" },
+            { name: "카지노", icon: "🎰" }, { name: "여객선", icon: "🚢" },
+            { name: "대형마트", icon: "🛒" }, { name: "병원", icon: "🏥" },
+            { name: "영화관", icon: "🎬" }, { name: "호텔", icon: "🏨" },
+            { name: "군대 부대", icon: "🎖️" }, { name: "학교", icon: "🏫" },
+            { name: "경찰서", icon: "🚨" }, { name: "놀이공원", icon: "🎡" },
+            { name: "미술관", icon: "🖼️" }, { name: "공항", icon: "✈️" },
+            { name: "소방서", icon: "🚒" }, { name: "은행", icon: "💰" },
+            { name: "도서관", icon: "📚" }, { name: "식당", icon: "🍽️" },
+            { name: "체육관", icon: "🏀" }, { name: "동물원", icon: "🦁" },
+            { name: "PC방", icon: "💻" }, { name: "노래방", icon: "🎤" },
+            { name: "편의점", icon: "🏪" }, { name: "골프장", icon: "⛳" },
+            { name: "스키장", icon: "⛷️" }, { name: "캠핑장", icon: "⛺" },
+            { name: "방송국", icon: "📺" }, { name: "법정", icon: "⚖️" },
+            { name: "연구소", icon: "🔬" }, { name: "수영장", icon: "🏊‍♂️" },
+            { name: "열기구 축제", icon: "🎈" }, { name: "오아시스 마을", icon: "🏜️" },
+            { name: "장난감 공장", icon: "🧸" }, { name: "워터파크 파도풀", icon: "🌊" },
+            { name: "야외 스케이트장", icon: "⛸️" }, { name: "중세 마차 정거장", icon: "🐴" },
+            { name: "아마존 탐험선", icon: "🐊" }, { name: "산꼭대기 천문대", icon: "🔭" },
+            { name: "비밀 마법 학교", icon: "🧙‍♂️" }, { name: "조선시대 궁궐", icon: "🏯" }
+        ];
+
         function joinRoom() {
             const name = document.getElementById('player-name').value.trim();
             const roomId = document.getElementById('room-id').value.trim();
@@ -95,6 +118,9 @@
 
             document.getElementById('screen-login').classList.add('hidden');
             document.getElementById('screen-room').classList.remove('hidden');
+
+            // 입장하자마자 장소 목록 미리 렌더링
+            renderLocations(ALL_LOCATIONS);
         }
 
         socket.on('roomData', ({ players }) => {
