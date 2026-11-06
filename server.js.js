@@ -8,7 +8,7 @@ const io = new Server(server, {
     cors: { origin: "*" }
 });
 
-app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 const LOCATIONS = [
     { name: "우주정거장", icon: "🛰️" }, { name: "해변", icon: "🏖️" },
