@@ -37,6 +37,9 @@ const LOCATIONS = [
     { name: "비밀 마법 학교", icon: "🧙‍♂️" }, { name: "조선시대 궁궐", icon: "🏯" }
 ];
 
+const COLORS = ['text-rose-400', 'text-amber-400', 'text-emerald-400', 'text-cyan-400', 'text-violet-400', 'text-pink-400', 'text-blue-400', 'text-orange-400'];
+const EMOJIS = ['🦊', '라이언', '🐼', '🐰', '🦁', '🐯', '🐨', '🦄', '🐸', '🐵'];
+
 const rooms = {};
 
 io.on('connection', (socket) => {
@@ -55,7 +58,15 @@ io.on('connection', (socket) => {
         }
 
         const room = rooms[roomId];
-        room.players.push({ id: socket.id, name: name });
+        const assignedColor = COLORS[room.players.length % COLORS.length];
+        const assignedEmoji = EMOJIS[room.players.length % EMOJIS.length];
+
+        room.players.push({ 
+            id: socket.id, 
+            name: name, 
+            color: assignedColor, 
+            emoji: assignedEmoji 
+        });
         
         updateRoom(roomId);
         io.to(roomId).emit('systemMessage', `${name}님이 입장했습니다.`);
@@ -83,7 +94,7 @@ io.on('connection', (socket) => {
             io.to(p.id).emit('gameStarted', {
                 isSpy: isSpy,
                 location: isSpy ? null : randomLoc,
-                players: room.players.map(pl => pl.name),
+                players: room.players,
                 locationsList: LOCATIONS
             });
         });
@@ -91,10 +102,16 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', (text) => {
         const roomId = socket.roomId;
-        if (!roomId) return;
+        const room = rooms[roomId];
+        if (!room) return;
+
+        const senderObj = room.players.find(p => p.id === socket.id);
+        if (!senderObj) return;
 
         io.to(roomId).emit('chatMessage', {
-            sender: socket.playerName,
+            sender: senderObj.name,
+            color: senderObj.color,
+            emoji: senderObj.emoji,
             text: text
         });
     });
