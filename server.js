@@ -30,16 +30,11 @@ const LOCATIONS = [
     { name: "스키장", icon: "⛷️" }, { name: "캠핑장", icon: "⛺" },
     { name: "방송국", icon: "📺" }, { name: "법정", icon: "⚖️" },
     { name: "연구소", icon: "🔬" }, { name: "수영장", icon: "🏊‍♂️" },
-    { name: "열기구 축제", icon: "🎈" },
-    { name: "오아시스 마을", icon: "🏜️" },
-    { name: "장난감 공장", icon: "🧸" },
-    { name: "워터파크 파도풀", icon: "🌊" },
-    { name: "야외 스케이트장", icon: "⛸️" },
-    { name: "중세 마차 정거장", icon: "🐴" },
-    { name: "아마존 탐험선", icon: "🐊" },
-    { name: "산꼭대기 천문대", icon: "🔭" },
-    { name: "비밀 마법 학교", icon: "🧙‍♂️" },
-    { name: "조선시대 궁궐", icon: "🏯" }
+    { name: "열기구 축제", icon: "🎈" }, { name: "오아시스 마을", icon: "🏜️" },
+    { name: "장난감 공장", icon: "🧸" }, { name: "워터파크 파도풀", icon: "🌊" },
+    { name: "야외 스케이트장", icon: "⛸️" }, { name: "중세 마차 정거장", icon: "🐴" },
+    { name: "아마존 탐험선", icon: "🐊" }, { name: "산꼭대기 천문대", icon: "🔭" },
+    { name: "비밀 마법 학교", icon: "🧙‍♂️" }, { name: "조선시대 궁궐", icon: "🏯" }
 ];
 
 const rooms = {};
@@ -53,34 +48,17 @@ io.on('connection', (socket) => {
         if (!rooms[roomId]) {
             rooms[roomId] = {
                 players: [],
-                status: 'lobby',
+                status: 'waiting',
                 location: null,
-                spySocketId: null,
-                currentTurn: null,
-                lastQuestioner: null
+                spySocketId: null
             };
         }
 
         const room = rooms[roomId];
-        if (room.status !== 'lobby') {
-            socket.emit('errorMsg', '이미 게임이 진행 중인 방입니다.');
-            return;
-        }
-
-        room.players.push({ id: socket.id, name: name, ready: false });
-        updateRoomData(roomId);
-    });
-
-    socket.on('toggleReady', () => {
-        const roomId = socket.roomId;
-        const room = rooms[roomId];
-        if (!room) return;
-
-        const player = room.players.find(p => p.id === socket.id);
-        if (player) {
-            player.ready = !player.ready;
-        }
-        updateRoomData(roomId);
+        room.players.push({ id: socket.id, name: name });
+        
+        updateRoom(roomId);
+        io.to(roomId).emit('systemMessage', `${name}님이 입장했습니다.`);
     });
 
     socket.on('startGame', () => {
@@ -99,8 +77,6 @@ io.on('connection', (socket) => {
         room.location = randomLoc;
         room.spySocketId = room.players[spyIdx].id;
         room.status = 'playing';
-        room.currentTurn = room.players[Math.floor(Math.random() * room.players.length)].name;
-        room.lastQuestioner = null;
 
         room.players.forEach(p => {
             const isSpy = (p.id === room.spySocketId);
@@ -108,29 +84,18 @@ io.on('connection', (socket) => {
                 isSpy: isSpy,
                 location: isSpy ? null : randomLoc,
                 players: room.players.map(pl => pl.name),
-                currentTurn: room.currentTurn,
                 locationsList: LOCATIONS
             });
         });
     });
 
-    socket.on('sendQuestion', ({ target, text }) => {
+    socket.on('sendMessage', (text) => {
         const roomId = socket.roomId;
-        const room = rooms[roomId];
-        if (!room || room.status !== 'playing') return;
+        if (!roomId) return;
 
         io.to(roomId).emit('chatMessage', {
             sender: socket.playerName,
-            target: target,
             text: text
-        });
-
-        room.lastQuestioner = socket.playerName;
-        room.currentTurn = target;
-
-        io.to(roomId).emit('turnChanged', {
-            currentTurn: room.currentTurn,
-            lastQuestioner: room.lastQuestioner
         });
     });
 
@@ -144,7 +109,7 @@ io.on('connection', (socket) => {
             location: room.location,
             spyName: spyPlayer ? spyPlayer.name : "알 수 없음"
         });
-        room.status = 'lobby';
+        room.status = 'waiting';
     });
 
     socket.on('disconnect', () => {
@@ -155,13 +120,14 @@ io.on('connection', (socket) => {
             if (room.players.length === 0) {
                 delete rooms[roomId];
             } else {
-                updateRoomData(roomId);
+                updateRoom(roomId);
+                io.to(roomId).emit('systemMessage', `${socket.playerName}님이 나갔습니다.`);
             }
         }
     });
 });
 
-function updateRoomData(roomId) {
+function updateRoom(roomId) {
     const room = rooms[roomId];
     if (room) {
         io.to(roomId).emit('roomData', {
